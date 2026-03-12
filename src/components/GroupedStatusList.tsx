@@ -29,7 +29,7 @@ interface Props<T extends StatusItem> {
   filterFn: (item: T, query: string) => boolean;
   onSelect: (item: T) => void;
   onAdd: () => void;
-  renderItem: (item: T, opts: { isSelected: boolean; palette: typeof STATUS_PALETTE.OPEN }) => ReactNode;
+  renderItem: (item: T, opts: { isSelected: boolean; palette: (typeof STATUS_PALETTE)[ShipmentStatus] }) => ReactNode;
 }
 
 export default function GroupedStatusList<T extends StatusItem>({
