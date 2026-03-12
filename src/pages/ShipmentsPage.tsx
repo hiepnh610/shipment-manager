@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Box, CircularProgress } from "@mui/material";
+import { Box, CircularProgress, Typography, IconButton } from "@mui/material";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import type { Shipment, Assignment } from "../types";
 import { api } from "../api";
 import { useToast } from "../components/ToastProvider";
-import ShipmentList from "../components/ShipmentList";
+import GroupedStatusList from "../components/GroupedStatusList";
 import ShipmentDetail from "../components/ShipmentDetail";
 import ShipmentForm from "../components/ShipmentForm";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -89,12 +90,42 @@ export default function ShipmentsPage() {
   return (
     <Box sx={{ display: "flex", height: "100%" }}>
       <Box sx={{ width: 380, borderRight: 1, borderColor: "divider", flexShrink: 0 }}>
-        <ShipmentList
-          shipments={shipments}
+        <GroupedStatusList
+          items={shipments}
           selectedId={selected?.id}
+          entityLabel="shipments"
+          filterFn={(s, q) => {
+            const lower = q.toLowerCase();
+            return s.label.toLowerCase().includes(lower) || s.client_name.toLowerCase().includes(lower);
+          }}
           onSelect={selectShipment}
-          onDelete={setDeleteId}
           onAdd={() => setFormOpen(true)}
+          renderItem={(shipment) => (
+            <>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="body2" fontWeight={600} noWrap>
+                  {shipment.label}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" noWrap component="div">
+                  {shipment.client_name} &middot; {new Date(shipment.arrival_date).toLocaleDateString()}
+                </Typography>
+              </Box>
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteId(shipment.id);
+                }}
+                sx={{
+                  opacity: 0.4,
+                  "&:hover": { opacity: 1, color: "error.main" },
+                  flexShrink: 0,
+                }}
+              >
+                <DeleteOutlineIcon fontSize="small" />
+              </IconButton>
+            </>
+          )}
         />
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>

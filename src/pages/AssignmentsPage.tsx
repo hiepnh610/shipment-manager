@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Box, CircularProgress } from "@mui/material";
+import { Box, CircularProgress, Typography, IconButton, Tooltip } from "@mui/material";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import type { Shipment, Assignment } from "../types";
 import { api } from "../api";
 import { useToast } from "../components/ToastProvider";
-import AssignmentList from "../components/AssignmentList";
+import GroupedStatusList from "../components/GroupedStatusList";
 import AssignmentDetail from "../components/AssignmentDetail";
 import ShipmentDetail from "../components/ShipmentDetail";
 import AssignmentForm from "../components/AssignmentForm";
@@ -45,6 +46,14 @@ export default function AssignmentsPage() {
       })
       .finally(() => setLoading(false));
   }, [loadData]);
+
+  const shipmentCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    shipments.forEach((s) => {
+      if (s.assignment_id) counts[s.assignment_id] = (counts[s.assignment_id] || 0) + 1;
+    });
+    return counts;
+  }, [shipments]);
 
   const assignmentShipments = useMemo(
     () => (selectedAssignment ? shipments.filter((s) => s.assignment_id === selectedAssignment.id) : []),
@@ -120,13 +129,47 @@ export default function AssignmentsPage() {
   return (
     <Box sx={{ display: "flex", height: "100%" }}>
       <Box sx={{ width: 300, borderRight: 1, borderColor: "divider", flexShrink: 0 }}>
-        <AssignmentList
-          assignments={assignments}
-          shipments={shipments}
+        <GroupedStatusList
+          items={assignments}
           selectedId={selectedAssignment?.id}
+          entityLabel="assignments"
+          filterFn={(a, q) => a.label.toLowerCase().includes(q.toLowerCase())}
           onSelect={selectAssignment}
-          onDelete={setDeleteId}
           onAdd={() => setFormOpen(true)}
+          renderItem={(assignment) => {
+            const count = shipmentCounts[assignment.id] || 0;
+            return (
+              <>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="body2" fontWeight={600} noWrap>
+                    {assignment.label}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" noWrap component="div">
+                    {assignment.clients.join(", ") || "No clients"} &middot; {count} shipments
+                  </Typography>
+                </Box>
+                <Tooltip title={count > 0 ? "Cannot delete: has shipments" : "Delete"}>
+                  <span>
+                    <IconButton
+                      size="small"
+                      disabled={count > 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteId(assignment.id);
+                      }}
+                      sx={{
+                        opacity: count > 0 ? 0.2 : 0.4,
+                        "&:hover": { opacity: 1, color: "error.main" },
+                        flexShrink: 0,
+                      }}
+                    >
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </>
+            );
+          }}
         />
       </Box>
       <Box sx={{ width: 320, borderRight: 1, borderColor: "divider", flexShrink: 0 }}>
