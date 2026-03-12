@@ -1,35 +1,46 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import {
   Box,
   TextField,
   Typography,
-  IconButton,
   Fab,
-  Tooltip,
   InputAdornment,
   Collapse,
   alpha,
 } from "@mui/material";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import type { Assignment, Shipment, ShipmentStatus } from "../types";
+import type { ShipmentStatus } from "../types";
 import { STATUS_PALETTE } from "../theme";
 
 const STATUS_ORDER: ShipmentStatus[] = ["OPEN", "IN_TRANSIT", "DELIVERED"];
 
-interface Props {
-  assignments: Assignment[];
-  shipments: Shipment[];
-  selectedId?: string;
-  onSelect: (assignment: Assignment) => void;
-  onDelete: (id: string) => void;
-  onAdd: () => void;
+export interface StatusItem {
+  id: string;
+  status: ShipmentStatus;
 }
 
-export default function AssignmentList({ assignments, shipments, selectedId, onSelect, onDelete, onAdd }: Props) {
+interface Props<T extends StatusItem> {
+  items: T[];
+  selectedId?: string;
+  entityLabel: string;
+  filterFn: (item: T, query: string) => boolean;
+  onSelect: (item: T) => void;
+  onAdd: () => void;
+  renderItem: (item: T, opts: { isSelected: boolean; palette: typeof STATUS_PALETTE.OPEN }) => ReactNode;
+}
+
+export default function GroupedStatusList<T extends StatusItem>({
+  items,
+  selectedId,
+  entityLabel,
+  filterFn,
+  onSelect,
+  onAdd,
+  renderItem,
+}: Props<T>) {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>(
     () => Object.fromEntries(STATUS_ORDER.map((s) => [s, false]))
@@ -40,25 +51,17 @@ export default function AssignmentList({ assignments, shipments, selectedId, onS
 
   useEffect(() => {
     if (!selectedId) return;
-    const match = assignments.find((a) => a.id === selectedId);
+    const match = items.find((i) => i.id === selectedId);
     if (match) setExpanded((prev) => ({ ...prev, [match.status]: true }));
-  }, [selectedId, assignments]);
+  }, [selectedId, items]);
 
   const filtered = useMemo(
-    () => assignments.filter((a) => a.label.toLowerCase().includes(search.toLowerCase())),
-    [assignments, search]
+    () => items.filter((i) => filterFn(i, search)),
+    [items, search, filterFn]
   );
 
-  const shipmentCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    shipments.forEach((s) => {
-      if (s.assignment_id) counts[s.assignment_id] = (counts[s.assignment_id] || 0) + 1;
-    });
-    return counts;
-  }, [shipments]);
-
   const grouped = useMemo(
-    () => STATUS_ORDER.map((status) => ({ status, items: filtered.filter((a) => a.status === status) })),
+    () => STATUS_ORDER.map((status) => ({ status, items: filtered.filter((i) => i.status === status) })),
     [filtered]
   );
 
@@ -69,7 +72,7 @@ export default function AssignmentList({ assignments, shipments, selectedId, onS
           <TextField
             fullWidth
             size="small"
-            placeholder="Search assignments..."
+            placeholder={`Search ${entityLabel}...`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             slotProps={{
@@ -94,7 +97,7 @@ export default function AssignmentList({ assignments, shipments, selectedId, onS
           </Fab>
         </Box>
         <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-          {filtered.length} of {assignments.length} assignments
+          {filtered.length} of {items.length} {entityLabel}
         </Typography>
       </Box>
 
@@ -143,13 +146,12 @@ export default function AssignmentList({ assignments, shipments, selectedId, onS
                 </Box>
               </Box>
               <Collapse in={isOpen} timeout="auto">
-                {group.items.map((assignment) => {
-                  const count = shipmentCounts[assignment.id] || 0;
-                  const isSelected = assignment.id === selectedId;
+                {group.items.map((item) => {
+                  const isSelected = item.id === selectedId;
                   return (
                     <Box
-                      key={assignment.id}
-                      onClick={() => onSelect(assignment)}
+                      key={item.id}
+                      onClick={() => onSelect(item)}
                       sx={{
                         mx: 0.5,
                         mb: 0.5,
@@ -166,6 +168,9 @@ export default function AssignmentList({ assignments, shipments, selectedId, onS
                         "&:hover": {
                           bgcolor: isSelected ? alpha(palette.main, 0.1) : alpha(palette.main, 0.04),
                           transform: "translateX(2px)",
+                          boxShadow: isSelected
+                            ? `0 0 0 1px ${alpha(palette.main, 0.4)}`
+                            : "0 2px 8px rgba(0,0,0,0.08)",
                         },
                         display: "flex",
                         alignItems: "center",
@@ -173,39 +178,13 @@ export default function AssignmentList({ assignments, shipments, selectedId, onS
                         gap: 1,
                       }}
                     >
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="body2" fontWeight={600} noWrap>
-                          {assignment.label}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" noWrap component="div">
-                          {assignment.clients.join(", ") || "No clients"} &middot; {count} shipments
-                        </Typography>
-                      </Box>
-                      <Tooltip title={count > 0 ? "Cannot delete: has shipments" : "Delete"}>
-                        <span>
-                          <IconButton
-                            size="small"
-                            disabled={count > 0}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDelete(assignment.id);
-                            }}
-                            sx={{
-                              opacity: count > 0 ? 0.2 : 0.4,
-                              "&:hover": { opacity: 1, color: "error.main" },
-                              flexShrink: 0,
-                            }}
-                          >
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
+                      {renderItem(item, { isSelected, palette })}
                     </Box>
                   );
                 })}
                 {group.items.length === 0 && (
                   <Typography variant="caption" color="text.disabled" sx={{ px: 2, py: 1, display: "block" }}>
-                    No assignments
+                    No {entityLabel}
                   </Typography>
                 )}
               </Collapse>
