@@ -65,6 +65,13 @@ export default function GroupedStatusList<T extends StatusItem>({
     [filtered]
   );
 
+  useEffect(() => {
+    if (!search) return;
+    setExpanded(
+      Object.fromEntries(grouped.map((g) => [g.status, g.items.length > 0]))
+    );
+  }, [search, grouped]);
+
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <Box sx={{ p: 2, pb: 1.5 }}>
